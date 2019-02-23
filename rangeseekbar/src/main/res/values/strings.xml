@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">RangeSeekBar</string>
+
+    <string name="text_left">Left text</string>
+    <string name="text_right">Right text</string>
+    <string name="text_center">Center text</string>
+</resources>
