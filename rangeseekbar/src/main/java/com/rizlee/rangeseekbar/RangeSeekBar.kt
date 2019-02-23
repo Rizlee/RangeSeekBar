@@ -1,13 +1,12 @@
 package com.rizlee.rangeseekbar
 
+import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Color
+import android.graphics.*
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
-import android.widget.SeekBar
 import androidx.core.content.res.ResourcesCompat
 import com.rizlee.rangeseekbar.utils.BitmapUtil
 import com.rizlee.rangeseekbar.utils.PixelUtil
@@ -23,6 +22,8 @@ private const val DEFAULT_HEIGHT_IN_DP = 40
 private const val DEFAULT_BAR_HEIGHT_IN_DP = 1
 private const val DEFAULT_TEXT_SIZE_IN_DP = 12
 private const val DEFAULT_TEXT_DISTANCE_TO_BUTTON_IN_DP = 8
+private const val DEFAULT_TEXT_DISTANCE_TO_TOP_IN_DP = 8
+private const val TEXT_LATERAL_PADDING_IN_DP = 3
 
 private const val THUMB_TEXT_POSITION_NONE = 0
 private const val THUMB_TEXT_POSITION_BELOW = 1
@@ -32,9 +33,13 @@ private const val ADDITIONAL_TEXT_POSITION_NONE = 3
 private const val ADDITIONAL_TEXT_POSITION_BELOW = 4
 private const val ADDITIONAL_TEXT_POSITION_ABOVE = 5
 
-class RangeSeekBar constructor(context: Context,
-                               attributesSet: AttributeSet? = null,
-                               listener: SeekBar.OnSeekBarChangeListener? = null) : View(context) {
+private const val INVALID_POINTER_ID = 255
+
+class RangeSeekBar constructor(context: Context) : View(context) {
+
+    constructor(context: Context, attributesSet: AttributeSet) : this(context){
+        this.attributesSet = attributesSet
+    }
 
     /* Attrs values */
     private var thumbImage: Bitmap
@@ -60,6 +65,8 @@ class RangeSeekBar constructor(context: Context,
     var transitionBarColor = Color.YELLOW
     var isGradientNeed = false
 
+    var listener: OnRangeSeekBarListener? = null
+
     private var textColor = Color.GRAY
     private var textFont = ResourcesCompat.getFont(getContext(), R.font.worksans_semibold)
     private var textSize = PixelUtil.dpToPx(getContext(), DEFAULT_TEXT_SIZE_IN_DP)
@@ -70,6 +77,8 @@ class RangeSeekBar constructor(context: Context,
 
     private var barHeight = PixelUtil.dpToPx(getContext(), DEFAULT_BAR_HEIGHT_IN_DP)
 
+    private var attributesSet: AttributeSet? = null
+
     /* System values */
     private var isDragging = false
 
@@ -77,6 +86,22 @@ class RangeSeekBar constructor(context: Context,
     private var rightValue = maxValue
 
     private val scaledTouchSlop by lazy { ViewConfiguration.get(getContext()).scaledTouchSlop }
+
+    private var activePointerId = INVALID_POINTER_ID
+    private var downMotionX = 0f
+
+    private var padding = 0f
+    private val distanceToTop: Int
+    private val thumbTextOffset: Int
+
+    private var normalizedMinValue = 0.0
+    private var normalizedMaxValue = 1.0
+
+    private var pressedThumb: Thumb? = null
+
+    private var rectF: RectF
+
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     init {
         getContext().resources.apply {
@@ -126,40 +151,315 @@ class RangeSeekBar constructor(context: Context,
         leftValue = minValue
         rightValue = maxValue
 
+        distanceToTop = PixelUtil.dpToPx(context, DEFAULT_TEXT_DISTANCE_TO_TOP_IN_DP)
+        thumbTextOffset = if (thumbTextPosition == THUMB_TEXT_POSITION_NONE) 0 else textSize + PixelUtil.dpToPx(context,
+                DEFAULT_TEXT_DISTANCE_TO_BUTTON_IN_DP) + distanceToTop
+
+        rectF = RectF(padding,
+                thumbTextOffset + getThumbHalfHeight() - barHeight / 2,
+                width - padding,
+                thumbTextOffset + getThumbHalfHeight() + barHeight / 2)
+
         isFocusable = true
         isFocusableInTouchMode = true
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (isActive) {
             if (!isEnabled) return false
-            event?.let {
-                when (it.action and MotionEvent.ACTION_MASK) {
-                    MotionEvent.ACTION_DOWN ->{
+            event?.let { event ->
+                var pointerIndex: Int
+                when (event.action and MotionEvent.ACTION_MASK) {
+                    MotionEvent.ACTION_DOWN -> {
+                        activePointerId = event.getPointerId(event.pointerCount - 1)
+                        pointerIndex = event.findPointerIndex(activePointerId)
+                        downMotionX = event.getX(pointerIndex)
 
+                        pressedThumb = evalPressedThumb(downMotionX)
+                        pressedThumb?.let { return super.onTouchEvent(event) }
+
+                        isPressed = true
+                        invalidate()
+                        isDragging = true
+                        trackTouchEvent(event)
+                        parent?.requestDisallowInterceptTouchEvent(true)
+                        println()
                     }
 
-                    MotionEvent.ACTION_MOVE ->{
+                    MotionEvent.ACTION_MOVE -> {
+                        pressedThumb?.let {
+                            if (isDragging) {
+                                trackTouchEvent(event)
+                            } else {
+                                pointerIndex = event.findPointerIndex(activePointerId)
+                                val x = event.getX(pointerIndex)
 
+                                if (Math.abs(x - downMotionX) > scaledTouchSlop) {
+                                    isPressed = true
+                                    invalidate()
+                                    isDragging = true
+                                    trackTouchEvent(event)
+                                    parent?.requestDisallowInterceptTouchEvent(true)
+                                    println()
+                                }
+                                listener?.let {
+                                    when (valueType) {
+                                        INT -> it.onValuesChanged(minValue.toInt(), maxValue.toInt())
+                                        FLOAT -> it.onValuesChanged(minValue, maxValue)
+                                        else -> throw Exception("Unknown value type")
+                                    }
+                                }
+                            }
+                        }
+                        println()
                     }
 
                     MotionEvent.ACTION_UP -> {
+                        if (isDragging) {
+                            trackTouchEvent(event)
+                            isDragging = false
+                            isPressed = false
+                        } else {
+                            isDragging = true
+                            trackTouchEvent(event)
+                            isDragging = false
+                        }
 
+                        pressedThumb = null
+                        invalidate()
                     }
-                    MotionEvent.ACTION_POINTER_DOWN ->{
-
+                    MotionEvent.ACTION_POINTER_DOWN -> {
+                        val index = event.pointerCount - 1
+                        downMotionX = event.getX(index)
+                        activePointerId = event.getPointerId(index)
+                        invalidate()
                     }
 
-                    MotionEvent.ACTION_POINTER_UP ->{
-
+                    MotionEvent.ACTION_POINTER_UP -> {
+                        onSecondaryPointerUp(event)
+                        invalidate()
                     }
                     MotionEvent.ACTION_CANCEL -> {
-
+                        if (isDragging) isDragging = false; isPressed = false
+                        invalidate()
                     }
                 }
             } ?: run { return false }
+        }
+        return true
+    }
 
+    @SuppressLint("DrawAllocation")
+    override fun onDraw(canvas: Canvas?) {
+        super.onDraw(canvas)
 
+        paint.textSize = textSize.toFloat()
+        paint.style = Paint.Style.FILL
+        paint.typeface = textFont
+        paint.isAntiAlias = true
+
+        padding = getThumbHalfWidth()
+
+        /* pre draw rect */
+        rectF.left = padding
+        rectF.right = width - padding
+
+        canvas?.apply {
+            drawRect(rectF, paint)
+
+            /* center rect */
+            rectF.left = normalizedToScreen(normalizedMinValue)
+            rectF.right = normalizedToScreen(normalizedMaxValue)
+
+            if (isGradientNeed) {
+                paint.shader = LinearGradient(
+                        rectF.left,
+                        0f,
+                        rectF.right,
+                        0f,
+                        intArrayOf(transitionBarColor, centerBarColor, transitionBarColor),
+                        floatArrayOf(0f, 0.5f, 1f),
+                        Shader.TileMode.REPEAT)
+            } else {
+                paint.color = centerBarColor
+            }
+            drawRect(rectF, paint)
+
+            /* left rect */
+            val rectUnusedArea = RectF()
+            rectUnusedArea.top = rectF.top
+            rectUnusedArea.bottom = rectF.bottom
+            rectUnusedArea.left = padding
+            rectUnusedArea.right = rectF.left
+
+            if (isGradientNeed) {
+                paint.shader = LinearGradient(
+                        rectUnusedArea.left,
+                        0f,
+                        rectUnusedArea.right,
+                        0f,
+                        intArrayOf(sideBarColor, sideBarColor, transitionBarColor),
+                        floatArrayOf(0f, 0.5f, 1f),
+                        Shader.TileMode.REPEAT)
+            } else {
+                paint.color = sideBarColor
+            }
+            drawRect(rectUnusedArea, paint)
+
+            /* right rect */
+            rectUnusedArea.right = width - padding
+            rectUnusedArea.left = rectF.right
+
+            if (isGradientNeed) {
+                paint.shader = LinearGradient(
+                        rectUnusedArea.right,
+                        0f,
+                        rectUnusedArea.left,
+                        0f,
+                        intArrayOf(sideBarColor, sideBarColor, transitionBarColor),
+                        floatArrayOf(0f, 0.5f, 1f),
+                        Shader.TileMode.REPEAT)
+            } else {
+                paint.color = sideBarColor
+            }
+            drawRect(rectUnusedArea, paint)
+
+            // todo maybe need check on isActive
+
+            /* clear gradient */
+            paint.shader = null
+
+            /* draw thumb */
+            drawThumb(normalizedToScreen(normalizedMaxValue), Thumb.MAX == pressedThumb, canvas)
+
+            /* draw text (thumb values) if need and left/center/right text if need*/
+            paint.textSize = textSize.toFloat()
+            paint.color = textColor                 //todo in future change textColor thumb values and left/center/right text
+
+            val minText = removeRedundantNumberPart(minValue.toString())
+            val maxText = removeRedundantNumberPart(maxValue.toString())
+
+            val minTextWidth = paint.measureText(minText)
+            val maxTextWidth = paint.measureText(maxText)
+            val centerTextWidth = paint.measureText(centerText)
+
+            var minPosition = Math.max(0f, normalizedToScreen(normalizedMinValue) - minTextWidth * 0.5f)
+            var maxPosition = Math.min(width - maxTextWidth, normalizedToScreen(normalizedMaxValue) - maxTextWidth * 0.5f)
+
+            val spacing = PixelUtil.dpToPx(context, TEXT_LATERAL_PADDING_IN_DP)
+            val overlap = minPosition + minTextWidth - maxPosition + spacing
+            if (overlap > 0f) {
+                minPosition -= (overlap * normalizedMinValue / (normalizedMinValue + 1 - normalizedMaxValue)).toFloat()
+                maxPosition += (overlap * (1 - normalizedMaxValue) / (normalizedMinValue + 1 - normalizedMaxValue)).toFloat()
+            }
+
+            drawText(minText,
+                    minPosition,
+                    (distanceToTop * 7 + textSize).toFloat(),
+                    paint)
+//todo need to check above below (its Y coordinates)
+            drawText(maxText,
+                    maxPosition,
+                    (distanceToTop * 7 + textSize).toFloat(),
+                    paint)
+
+            val leftTextWidth = padding + paint.measureText(leftText) + spacing.toFloat()
+            val centerTextPosition = (maxPosition + minPosition) * 0.5f - centerTextWidth * 0.5f + spacing * 4
+            var textPosition = centerTextPosition
+
+            if (centerTextPosition < leftTextWidth + spacing) textPosition = leftTextWidth + spacing
+            if (centerTextPosition + centerTextWidth > width - padding + spacing) textPosition = width.toFloat() - padding - centerTextWidth + spacing
+
+            drawText(centerText,
+                    textPosition,
+                    (distanceToTop + textSize).toFloat(),
+                    paint)
+
+            drawText(leftText,
+                    normalizedToScreen(0.0),
+                    (distanceToTop + textSize).toFloat(),
+                    paint)
+
+        }
+    }
+
+    private fun removeRedundantNumberPart(number: String): String {
+        return if (number.contains(".")) {
+            number.substring(0, number.indexOf(".") + 2)
+        } else number
+    }
+
+    private fun drawThumb(screenCoord: Float, pressed: Boolean, canvas: Canvas) {
+        val buttonToDraw = if (isActive) {
+            if (pressed) thumbPressedImage else thumbImage
+        } else {
+            thumbDisabledImage
+        }
+
+        canvas.drawBitmap(buttonToDraw,
+                screenCoord - getThumbHalfWidth(),
+                thumbTextOffset.toFloat(),
+                paint)
+    }
+
+    private fun evalPressedThumb(touchX: Float): Thumb? {
+        val minThumbPressed = isInThumbRange(touchX, normalizedMinValue)
+        val maxThumbPressed = isInThumbRange(touchX, normalizedMaxValue)
+        return if (minThumbPressed && maxThumbPressed) {
+            if (touchX / width > 0.5f) Thumb.MIN else Thumb.MAX
+        } else if (minThumbPressed) {
+            Thumb.MIN
+        } else if (maxThumbPressed) {
+            Thumb.MAX
+        } else null
+    }
+
+    private fun onSecondaryPointerUp(ev: MotionEvent) {
+        ev.action.apply {
+            if (ev.getPointerId(this) == activePointerId) {
+                val newPointerIndex = if (this == 0) 1 else 0
+                downMotionX = ev.getX(newPointerIndex)
+                activePointerId = ev.getPointerId(newPointerIndex)
+            }
+        }
+    }
+
+    private fun isInThumbRange(touchX: Float, normalizedThumbValue: Double) = Math.abs(touchX - normalizedToScreen(normalizedThumbValue)) <= getThumbHalfWidth()
+
+    private fun normalizedToScreen(normalizedPos: Double) = (padding + normalizedPos * (width - 2 * padding)).toFloat()
+
+    private fun getThumbHalfHeight() = thumbImage.height * 0.5f
+    private fun getThumbHalfWidth() = thumbImage.width * 0.5f
+
+    private fun trackTouchEvent(event: MotionEvent) {
+        val pointerIndex = event.findPointerIndex(activePointerId)
+        val x = event.getX(pointerIndex)
+
+        if (Thumb.MIN == pressedThumb) {
+            setNormalizedMinValue(screenToNormalized(x))
+        } else if (Thumb.MAX == pressedThumb) {
+            setNormalizedMaxValue(screenToNormalized(x))
+        }
+    }
+
+    private fun setNormalizedMinValue(value: Double) {
+        normalizedMinValue = Math.max(0.0, Math.min(1.0, Math.min(value, normalizedMaxValue)))
+        invalidate()
+    }
+
+    private fun setNormalizedMaxValue(value: Double) {
+        normalizedMaxValue = Math.max(0.0, Math.min(1.0, Math.max(value, normalizedMinValue)))
+        invalidate()
+    }
+
+    private fun screenToNormalized(screenPos: Float): Double {
+        val width = width
+        return if (width <= 2 * padding) {
+            0.0 //divide by zero safe
+        } else {
+            val result = ((screenPos - padding) / (width - 2 * padding)).toDouble()
+            Math.min(1.0, Math.max(0.0, result))
         }
     }
 
@@ -170,6 +470,11 @@ class RangeSeekBar constructor(context: Context,
     }
 
     interface OnRangeSeekBarListener {
-        fun onValuesChanged()
+        fun onValuesChanged(minValue: Float, maxValue: Float)
+        fun onValuesChanged(minValue: Int, maxValue: Int)
+    }
+
+    enum class Thumb {
+        MIN, MAX
     }
 }
