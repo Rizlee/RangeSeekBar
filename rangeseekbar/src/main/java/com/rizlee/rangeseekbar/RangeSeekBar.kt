@@ -184,7 +184,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
                         downMotionX = event.getX(pointerIndex)
 
                         pressedThumb = evalPressedThumb(downMotionX)
-                        pressedThumb?.let { return super.onTouchEvent(event) }
+                        pressedThumb ?: return super.onTouchEvent(event)
 
                         isPressed = true
                         invalidate()
@@ -346,6 +346,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
 
             /* draw thumb */
             drawThumb(normalizedToScreen(normalizedMaxValue), Thumb.MAX == pressedThumb, canvas)
+            drawThumb(normalizedToScreen(normalizedMinValue), Thumb.MIN == pressedThumb, canvas)
 
             /* draw text (thumb values) if need and left/center/right text if need*/
             paint.textSize = textSize.toFloat()
@@ -412,7 +413,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
         }
 
         canvas.drawBitmap(buttonToDraw,
-                screenCoord - getThumbHalfWidth(),
+                screenCoord - if (pressed) getThumbPressedHalfWidth() else getThumbHalfWidth(),
                 thumbTextOffset.toFloat(),
                 paint)
     }
@@ -445,6 +446,8 @@ class RangeSeekBar constructor(context: Context) : View(context) {
 
     private fun getThumbHalfHeight() = thumbImage.height * 0.5f
     private fun getThumbHalfWidth() = thumbImage.width * 0.5f
+    private fun getThumbPressedHalfHeight() = thumbPressedImage.height * 0.5f
+    private fun getThumbPressedHalfWidth() = thumbPressedImage.width * 0.5f
 
     private fun trackTouchEvent(event: MotionEvent) {
         val pointerIndex = event.findPointerIndex(activePointerId)
