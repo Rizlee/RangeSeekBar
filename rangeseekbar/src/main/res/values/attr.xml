@@ -16,12 +16,14 @@
             <enum name="none" value="0" />
             <enum name="below" value="1" />
             <enum name="above" value="2" />
+            <enum name="center" value="3" />
         </attr>
 
         <attr name="showAdditionalText">
-            <enum name="none" value="3" />
-            <enum name="below" value="4" />
-            <enum name="above" value="5" />
+            <enum name="none" value="0" />
+            <enum name="below" value="1" />
+            <enum name="above" value="2" />
+            <enum name="center" value="3" />
         </attr>
 
         <attr name="roundedCorners" format="boolean" />

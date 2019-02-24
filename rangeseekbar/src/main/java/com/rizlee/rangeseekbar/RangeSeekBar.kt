@@ -20,7 +20,7 @@ private const val DEFAULT_MAX = 100f
 private const val DEFAULT_STEP = 1f
 
 private const val DEFAULT_HEIGHT_IN_DP = 40
-private const val DEFAULT_BAR_HEIGHT_IN_DP = 4
+private const val DEFAULT_BAR_HEIGHT_IN_DP = 8
 private const val DEFAULT_TEXT_SIZE_IN_DP = 12
 private const val DEFAULT_TEXT_DISTANCE_TO_BUTTON_IN_DP = 8
 private const val DEFAULT_TEXT_DISTANCE_TO_TOP_IN_DP = 8
@@ -29,10 +29,12 @@ private const val TEXT_LATERAL_PADDING_IN_DP = 3
 private const val THUMB_TEXT_POSITION_NONE = 0
 private const val THUMB_TEXT_POSITION_BELOW = 1
 private const val THUMB_TEXT_POSITION_ABOVE = 2
+private const val THUMB_TEXT_POSITION_CENTER = 3
 
-private const val ADDITIONAL_TEXT_POSITION_NONE = 3
-private const val ADDITIONAL_TEXT_POSITION_BELOW = 4
-private const val ADDITIONAL_TEXT_POSITION_ABOVE = 5
+private const val ADDITIONAL_TEXT_POSITION_NONE = 0
+private const val ADDITIONAL_TEXT_POSITION_BELOW = 1
+private const val ADDITIONAL_TEXT_POSITION_ABOVE = 2
+private const val ADDITIONAL_TEXT_POSITION_CENTER = 3
 
 private const val INVALID_POINTER_ID = 255
 
@@ -278,27 +280,11 @@ class RangeSeekBar constructor(context: Context) : View(context) {
         rectF.right = width - padding
 
         canvas?.apply {
-            drawRect(rectF, paint)
+            //drawRect(rectF, paint)  // this line just for debugging
 
             /* center rect */
             rectF.left = normalizedToScreen(normalizedMinValue)
             rectF.right = normalizedToScreen(normalizedMaxValue)
-
-            Logger.getLogger("test").warning("min: $minValue, max: $maxValue, normalizedMinValue: $normalizedMinValue, normalizedMaxValue: $normalizedMaxValue")
-
-            if (isGradientNeed) {
-                paint.shader = LinearGradient(
-                        rectF.left,
-                        0f,
-                        rectF.right,
-                        0f,
-                        intArrayOf(transitionBarColor, centerBarColor, transitionBarColor),
-                        floatArrayOf(0f, 0.5f, 1f),
-                        Shader.TileMode.REPEAT)
-            } else {
-                paint.color = centerBarColor
-            }
-            drawRect(rectF, paint)
 
             /* left rect */
             val rectUnusedArea = RectF()
@@ -319,7 +305,15 @@ class RangeSeekBar constructor(context: Context) : View(context) {
             } else {
                 paint.color = sideBarColor
             }
-            drawRect(rectUnusedArea, paint)
+            if (!isRoundedCorners) {
+                drawRect(rectUnusedArea, paint)
+            } else {
+                val bufRect = RectF(rectUnusedArea)
+                bufRect.left += 10
+                drawRect(bufRect, paint)
+
+                drawRoundRect(rectUnusedArea, 10f, 10f, paint)
+            }
 
             /* right rect */
             rectUnusedArea.right = width - padding
@@ -337,7 +331,32 @@ class RangeSeekBar constructor(context: Context) : View(context) {
             } else {
                 paint.color = sideBarColor
             }
-            drawRect(rectUnusedArea, paint)
+            if (!isRoundedCorners) {
+                drawRect(rectUnusedArea, paint)
+            } else {
+                val bufRect1 = RectF(rectUnusedArea)
+                bufRect1.right -= 10
+                drawRect(bufRect1, paint)
+
+                drawRoundRect(rectUnusedArea, 10f, 10f, paint)
+            }
+
+            rectF.left = normalizedToScreen(normalizedMinValue)
+            rectF.right = normalizedToScreen(normalizedMaxValue)
+
+            if (isGradientNeed) {
+                paint.shader = LinearGradient(
+                        rectF.left,
+                        0f,
+                        rectF.right,
+                        0f,
+                        intArrayOf(transitionBarColor, centerBarColor, transitionBarColor),
+                        floatArrayOf(0f, 0.5f, 1f),
+                        Shader.TileMode.REPEAT)
+            } else {
+                paint.color = centerBarColor
+            }
+            drawRect(rectF, paint)
 
             // todo maybe need check on isActive
 
@@ -369,33 +388,71 @@ class RangeSeekBar constructor(context: Context) : View(context) {
                 maxPosition += (overlap * (1 - normalizedMaxValue) / (normalizedMinValue + 1 - normalizedMaxValue)).toFloat()
             }
 
-            drawText(minText,
-                    minPosition,
-                    (distanceToTop * 7 + textSize).toFloat(),
-                    paint)
-//todo need to check above below (its Y coordinates)
-            drawText(maxText,
-                    maxPosition,
-                    (distanceToTop * 7 + textSize).toFloat(),
-                    paint)
+            if (thumbTextPosition != THUMB_TEXT_POSITION_NONE) {
+                val yPosition = when (additionalTextPosition) {
+                    THUMB_TEXT_POSITION_BELOW -> {
+                        thumbTextOffset + getThumbHalfHeight() + barHeight * 2
+                    }
+                    THUMB_TEXT_POSITION_ABOVE -> {
+                        thumbTextOffset + getThumbHalfHeight() - barHeight / 2
+                    }
+                    THUMB_TEXT_POSITION_CENTER -> {
+                        thumbTextOffset + getThumbHalfHeight() + barHeight / 2
+                    }
+                    else -> {
+                        thumbTextOffset + getThumbHalfHeight() + barHeight / 2
+                    }
+                }
+                drawText(minText,
+                        minPosition,
+                        yPosition,
+                        paint)
+
+                drawText(maxText,
+                        maxPosition,
+                        yPosition,
+                        paint)
+            }
 
             val leftTextWidth = padding + paint.measureText(leftText) + spacing.toFloat()
+            val rightTextWidth = padding + paint.measureText(rightText) + spacing.toFloat()
             val centerTextPosition = (maxPosition + minPosition) * 0.5f - centerTextWidth * 0.5f + spacing * 4
             var textPosition = centerTextPosition
 
             if (centerTextPosition < leftTextWidth + spacing) textPosition = leftTextWidth + spacing
-            if (centerTextPosition + centerTextWidth > width - padding + spacing) textPosition = width.toFloat() - padding - centerTextWidth + spacing
+            if (centerTextPosition + centerTextWidth > width - rightTextWidth - padding + spacing * 4) textPosition = width - rightTextWidth - padding - centerTextWidth + spacing * 4
 
-            drawText(centerText,
-                    textPosition,
-                    (distanceToTop + textSize).toFloat(),
-                    paint)
+            if (additionalTextPosition != ADDITIONAL_TEXT_POSITION_NONE) {
+                val yPosition = when (additionalTextPosition) {
+                    ADDITIONAL_TEXT_POSITION_BELOW -> {
+                        thumbTextOffset + getThumbHalfHeight() + barHeight * 2
+                    }
+                    ADDITIONAL_TEXT_POSITION_ABOVE -> {
+                        thumbTextOffset + getThumbHalfHeight() - barHeight / 2
+                    }
+                    ADDITIONAL_TEXT_POSITION_CENTER -> {
+                        thumbTextOffset + getThumbHalfHeight() + barHeight / 2
+                    }
+                    else -> {
+                        thumbTextOffset + getThumbHalfHeight() + barHeight / 2
+                    }
+                }
 
-            drawText(leftText,
-                    normalizedToScreen(0.0),
-                    (distanceToTop + textSize).toFloat(),
-                    paint)
+                drawText(centerText,
+                        textPosition,
+                        yPosition,
+                        paint)
 
+                drawText(leftText,
+                        normalizedToScreen(0.0),
+                        yPosition,
+                        paint)
+
+                drawText(rightText,
+                        normalizedToScreen(1.0) - rightTextWidth + spacing + padding,
+                        yPosition,
+                        paint)
+            }
         }
     }
 
@@ -493,7 +550,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
         }
 
         var height = (thumbImage.height
-                + (if (thumbTextPosition == THUMB_TEXT_POSITION_NONE) 0 else PixelUtil.dpToPx(context, DEFAULT_HEIGHT_IN_DP)))
+                + /*(if (thumbTextPosition == THUMB_TEXT_POSITION_NONE || thumbTextPosition == THUMB_TEXT_POSITION_CENTER && additionalTextPosition == ADDITIONAL_TEXT_POSITION_NONE || additionalTextPosition == ADDITIONAL_TEXT_POSITION_CENTER) 0 else */PixelUtil.dpToPx(context, DEFAULT_HEIGHT_IN_DP))//)
         if (View.MeasureSpec.UNSPECIFIED != View.MeasureSpec.getMode(heightMeasureSpec)) {
             height = Math.min(height, View.MeasureSpec.getSize(heightMeasureSpec))
         }
