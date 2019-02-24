@@ -8,8 +8,9 @@
         tools:context=".MainActivity">
 
     <com.rizlee.rangeseekbar.RangeSeekBar
-        android:layout_width="wrap_content"
+        android:layout_width="300dp"
         android:layout_height="wrap_content"
+        app:active="true"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

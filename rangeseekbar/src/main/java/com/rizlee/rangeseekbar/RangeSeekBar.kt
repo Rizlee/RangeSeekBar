@@ -10,6 +10,7 @@ import android.view.ViewConfiguration
 import androidx.core.content.res.ResourcesCompat
 import com.rizlee.rangeseekbar.utils.BitmapUtil
 import com.rizlee.rangeseekbar.utils.PixelUtil
+import java.util.logging.Logger
 
 const val INT = 6
 const val FLOAT = 7
@@ -19,7 +20,7 @@ private const val DEFAULT_MAX = 100f
 private const val DEFAULT_STEP = 1f
 
 private const val DEFAULT_HEIGHT_IN_DP = 40
-private const val DEFAULT_BAR_HEIGHT_IN_DP = 1
+private const val DEFAULT_BAR_HEIGHT_IN_DP = 4
 private const val DEFAULT_TEXT_SIZE_IN_DP = 12
 private const val DEFAULT_TEXT_DISTANCE_TO_BUTTON_IN_DP = 8
 private const val DEFAULT_TEXT_DISTANCE_TO_TOP_IN_DP = 8
@@ -37,14 +38,15 @@ private const val INVALID_POINTER_ID = 255
 
 class RangeSeekBar constructor(context: Context) : View(context) {
 
-    constructor(context: Context, attributesSet: AttributeSet) : this(context){
+    constructor(context: Context, attributesSet: AttributeSet) : this(context) {
         this.attributesSet = attributesSet
+        init()
     }
 
     /* Attrs values */
-    private var thumbImage: Bitmap
-    private var thumbDisabledImage: Bitmap // when isActive = false
-    private var thumbPressedImage: Bitmap
+    private lateinit var thumbImage: Bitmap
+    private lateinit var thumbDisabledImage: Bitmap // when isActive = false
+    private lateinit var thumbPressedImage: Bitmap
 
     var isActive = true //dragable or not
         set(value) {
@@ -91,20 +93,24 @@ class RangeSeekBar constructor(context: Context) : View(context) {
     private var downMotionX = 0f
 
     private var padding = 0f
-    private val distanceToTop: Int
-    private val thumbTextOffset: Int
+    private var distanceToTop = 0
+    private var thumbTextOffset = 0
 
     private var normalizedMinValue = 0.0
-    private var normalizedMaxValue = 1.0
+    private var normalizedMaxValue = 0.5
 
     private var pressedThumb: Thumb? = null
 
-    private var rectF: RectF
+    private lateinit var rectF: RectF
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
     init {
-        getContext().resources.apply {
+        init()
+    }
+
+    private fun init() {
+        context.resources.apply {
             BitmapUtil.apply {
                 thumbImage = toBitmap(getDrawable(R.drawable.thumb_normal))
                 thumbPressedImage = toBitmap(getDrawable(R.drawable.thumb_pressed))
@@ -113,7 +119,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
         }
 
         attributesSet?.let {
-            getContext().obtainStyledAttributes(it, R.styleable.RangeSeekBar).apply {
+            context.obtainStyledAttributes(it, R.styleable.RangeSeekBar).apply {
                 getDrawable(R.styleable.RangeSeekBar_thumbsNormal)?.let { drawable -> thumbImage = BitmapUtil.toBitmap(drawable) }
                 getDrawable(R.styleable.RangeSeekBar_thumbsDisabled)?.let { drawable -> thumbDisabledImage = BitmapUtil.toBitmap(drawable) }
                 getDrawable(R.styleable.RangeSeekBar_thumbsPressed)?.let { drawable -> thumbPressedImage = BitmapUtil.toBitmap(drawable) }
@@ -129,9 +135,9 @@ class RangeSeekBar constructor(context: Context) : View(context) {
                 additionalTextPosition = getInt(R.styleable.RangeSeekBar_showAdditionalText, additionalTextPosition)
                 textSize = getDimensionPixelSize(R.styleable.RangeSeekBar_textSize, textSize) //todo maybe problems with text size here
 
-                centerText = getString(R.styleable.RangeSeekBar_centerText)?.let { centerText }!!
-                leftText = getString(R.styleable.RangeSeekBar_leftText)?.let { leftText }!!
-                rightText = getString(R.styleable.RangeSeekBar_rightText)?.let { rightText }!!
+                centerText = getString(R.styleable.RangeSeekBar_centerText) ?: centerText
+                leftText = getString(R.styleable.RangeSeekBar_leftText) ?: leftText
+                rightText = getString(R.styleable.RangeSeekBar_rightText) ?: rightText
 
                 isActive = getBoolean(R.styleable.RangeSeekBar_active, isActive)
 
@@ -172,6 +178,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
                 var pointerIndex: Int
                 when (event.action and MotionEvent.ACTION_MASK) {
                     MotionEvent.ACTION_DOWN -> {
+                        Logger.getLogger("test").warning("ACTION_DOWN")
                         activePointerId = event.getPointerId(event.pointerCount - 1)
                         pointerIndex = event.findPointerIndex(activePointerId)
                         downMotionX = event.getX(pointerIndex)
@@ -188,6 +195,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
                     }
 
                     MotionEvent.ACTION_MOVE -> {
+                        Logger.getLogger("test").warning("ACTION_MOVE")
                         pressedThumb?.let {
                             if (isDragging) {
                                 trackTouchEvent(event)
@@ -216,6 +224,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
                     }
 
                     MotionEvent.ACTION_UP -> {
+                        Logger.getLogger("test").warning("ACTION_UP")
                         if (isDragging) {
                             trackTouchEvent(event)
                             isDragging = false
@@ -230,6 +239,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
                         invalidate()
                     }
                     MotionEvent.ACTION_POINTER_DOWN -> {
+                        Logger.getLogger("test").warning("ACTION_POINTER_DOWN")
                         val index = event.pointerCount - 1
                         downMotionX = event.getX(index)
                         activePointerId = event.getPointerId(index)
@@ -237,10 +247,12 @@ class RangeSeekBar constructor(context: Context) : View(context) {
                     }
 
                     MotionEvent.ACTION_POINTER_UP -> {
+                        Logger.getLogger("test").warning("ACTION_POINTER_UP")
                         onSecondaryPointerUp(event)
                         invalidate()
                     }
                     MotionEvent.ACTION_CANCEL -> {
+                        Logger.getLogger("test").warning("ACTION_CANCEL")
                         if (isDragging) isDragging = false; isPressed = false
                         invalidate()
                     }
@@ -271,6 +283,8 @@ class RangeSeekBar constructor(context: Context) : View(context) {
             /* center rect */
             rectF.left = normalizedToScreen(normalizedMinValue)
             rectF.right = normalizedToScreen(normalizedMaxValue)
+
+            Logger.getLogger("test").warning("min: $minValue, max: $maxValue, normalizedMinValue: $normalizedMinValue, normalizedMaxValue: $normalizedMaxValue")
 
             if (isGradientNeed) {
                 paint.shader = LinearGradient(
@@ -467,6 +481,20 @@ class RangeSeekBar constructor(context: Context) : View(context) {
         this.leftValue = leftValue!!
         this.rightValue = rightValue!!
         this.stepValue = stepValue!!
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        var width = 200
+        if (View.MeasureSpec.UNSPECIFIED != View.MeasureSpec.getMode(widthMeasureSpec)) {
+            width = View.MeasureSpec.getSize(widthMeasureSpec)
+        }
+
+        var height = (thumbImage.height
+                + (if (thumbTextPosition == THUMB_TEXT_POSITION_NONE) 0 else PixelUtil.dpToPx(context, DEFAULT_HEIGHT_IN_DP)))
+        if (View.MeasureSpec.UNSPECIFIED != View.MeasureSpec.getMode(heightMeasureSpec)) {
+            height = Math.min(height, View.MeasureSpec.getSize(heightMeasureSpec))
+        }
+        setMeasuredDimension(width, height)
     }
 
     interface OnRangeSeekBarListener {
