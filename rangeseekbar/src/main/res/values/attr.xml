@@ -8,7 +8,10 @@
             <enum name="intType" value="6" />
             <enum name="floatType" value="7" />
         </attr>
+        <attr name="padding" format="dimension" />
+        <attr name="height" format="dimension" />
 
+        <!-- ready -->
         <attr name="enableGradient" format="boolean" />
         <attr name="textColor" format="color" />
 
@@ -19,6 +22,9 @@
             <enum name="center" value="3" />
         </attr>
 
+        <attr name="thumbsTextMargin" format="dimension" />
+        <attr name="additionalTextMargin" format="dimension" />
+
         <attr name="showAdditionalText">
             <enum name="none" value="0" />
             <enum name="below" value="1" />
@@ -27,14 +33,10 @@
         </attr>
 
         <attr name="roundedCorners" format="boolean" />
-
-        <attr name="padding" format="dimension" />
-        <attr name="height" format="dimension" />
         <attr name="barHeight" format="dimension" />
 
         <attr name="active" format="boolean" />
 
-        <attr name="textAboveThumbsColor" format="color" />
         <attr name="textFont" format="reference" />
         <attr name="textSize" format="dimension" />
 

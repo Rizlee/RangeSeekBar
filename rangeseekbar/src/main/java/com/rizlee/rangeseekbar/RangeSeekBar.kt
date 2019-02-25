@@ -31,6 +31,9 @@ private const val THUMB_TEXT_POSITION_BELOW = 1
 private const val THUMB_TEXT_POSITION_ABOVE = 2
 private const val THUMB_TEXT_POSITION_CENTER = 3
 
+private const val THUMB_TEXT_MARGIN_IN_DP = 0
+private const val ADDITIONAL_TEXT_MARGIN_IN_DP = 0
+
 private const val ADDITIONAL_TEXT_POSITION_NONE = 0
 private const val ADDITIONAL_TEXT_POSITION_BELOW = 1
 private const val ADDITIONAL_TEXT_POSITION_ABOVE = 2
@@ -81,6 +84,9 @@ class RangeSeekBar constructor(context: Context) : View(context) {
 
     private var barHeight = PixelUtil.dpToPx(getContext(), DEFAULT_BAR_HEIGHT_IN_DP)
 
+    private var additionalTextMargin = ADDITIONAL_TEXT_MARGIN_IN_DP
+    private var thumbTextMargin = THUMB_TEXT_MARGIN_IN_DP
+
     private var attributesSet: AttributeSet? = null
 
     /* System values */
@@ -96,7 +102,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
 
     private var padding = 0f
     private var distanceToTop = 0
-    private var thumbTextOffset = 0
+    //private var thumbTextOffset = 0
 
     private var normalizedMinValue = 0.0
     private var normalizedMaxValue = 0.5
@@ -104,6 +110,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
     private var pressedThumb: Thumb? = null
 
     private lateinit var rectF: RectF
+    private lateinit var center: Point
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -152,6 +159,9 @@ class RangeSeekBar constructor(context: Context) : View(context) {
 
                 barHeight = getDimensionPixelSize(R.styleable.RangeSeekBar_barHeight, barHeight)
 
+                additionalTextMargin = getDimensionPixelSize(R.styleable.RangeSeekBar_additionalTextMargin, additionalTextMargin)
+                thumbTextMargin = getDimensionPixelSize(R.styleable.RangeSeekBar_thumbsTextMargin, thumbTextMargin)
+
                 recycle()
             }
         }
@@ -160,13 +170,6 @@ class RangeSeekBar constructor(context: Context) : View(context) {
         rightValue = maxValue
 
         distanceToTop = PixelUtil.dpToPx(context, DEFAULT_TEXT_DISTANCE_TO_TOP_IN_DP)
-        thumbTextOffset = if (thumbTextPosition == THUMB_TEXT_POSITION_NONE) 0 else textSize + PixelUtil.dpToPx(context,
-                DEFAULT_TEXT_DISTANCE_TO_BUTTON_IN_DP) + distanceToTop
-
-        rectF = RectF(padding,
-                thumbTextOffset + getThumbHalfHeight() - barHeight / 2,
-                width - padding,
-                thumbTextOffset + getThumbHalfHeight() + barHeight / 2)
 
         isFocusable = true
         isFocusableInTouchMode = true
@@ -267,6 +270,12 @@ class RangeSeekBar constructor(context: Context) : View(context) {
     @SuppressLint("DrawAllocation")
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
+
+        center = Point(width / 2, height / 2)
+        rectF = RectF(padding,
+                center.y - barHeight / 2.toFloat(),
+                width - padding,
+                center.y + barHeight / 2.toFloat())
 
         paint.textSize = textSize.toFloat()
         paint.style = Paint.Style.FILL
@@ -371,8 +380,8 @@ class RangeSeekBar constructor(context: Context) : View(context) {
             paint.textSize = textSize.toFloat()
             paint.color = textColor                 //todo in future change textColor thumb values and left/center/right text
 
-            val minText = removeRedundantNumberPart(minValue.toString())
-            val maxText = removeRedundantNumberPart(maxValue.toString())
+            val minText = removeRedundantNumberPart(normalizedMinValue.toString())
+            val maxText = removeRedundantNumberPart(normalizedMaxValue.toString())
 
             val minTextWidth = paint.measureText(minText)
             val maxTextWidth = paint.measureText(maxText)
@@ -389,18 +398,18 @@ class RangeSeekBar constructor(context: Context) : View(context) {
             }
 
             if (thumbTextPosition != THUMB_TEXT_POSITION_NONE) {
-                val yPosition = when (additionalTextPosition) {
-                    THUMB_TEXT_POSITION_BELOW -> {
-                        thumbTextOffset + getThumbHalfHeight() + barHeight * 2
+                val yPosition = when (thumbTextPosition) {
+                    ADDITIONAL_TEXT_POSITION_BELOW -> {
+                        center.y + barHeight / 2 + getThumbHalfHeight() + additionalTextMargin
                     }
-                    THUMB_TEXT_POSITION_ABOVE -> {
-                        thumbTextOffset + getThumbHalfHeight() - barHeight / 2
+                    ADDITIONAL_TEXT_POSITION_ABOVE -> {
+                        center.y + barHeight / 2 - getThumbHalfHeight() - additionalTextMargin
                     }
-                    THUMB_TEXT_POSITION_CENTER -> {
-                        thumbTextOffset + getThumbHalfHeight() + barHeight / 2
+                    ADDITIONAL_TEXT_POSITION_CENTER -> {
+                        (center.y + barHeight / 2).toFloat()
                     }
                     else -> {
-                        thumbTextOffset + getThumbHalfHeight() + barHeight / 2
+                        (center.y + barHeight / 2).toFloat()
                     }
                 }
                 drawText(minText,
@@ -425,16 +434,16 @@ class RangeSeekBar constructor(context: Context) : View(context) {
             if (additionalTextPosition != ADDITIONAL_TEXT_POSITION_NONE) {
                 val yPosition = when (additionalTextPosition) {
                     ADDITIONAL_TEXT_POSITION_BELOW -> {
-                        thumbTextOffset + getThumbHalfHeight() + barHeight * 2
+                        center.y + barHeight / 2 + getThumbHalfHeight() + additionalTextMargin
                     }
                     ADDITIONAL_TEXT_POSITION_ABOVE -> {
-                        thumbTextOffset + getThumbHalfHeight() - barHeight / 2
+                        center.y + barHeight / 2 - getThumbHalfHeight() - additionalTextMargin
                     }
                     ADDITIONAL_TEXT_POSITION_CENTER -> {
-                        thumbTextOffset + getThumbHalfHeight() + barHeight / 2
+                        (center.y + barHeight / 2).toFloat()
                     }
                     else -> {
-                        thumbTextOffset + getThumbHalfHeight() + barHeight / 2
+                        (center.y + barHeight / 2).toFloat()
                     }
                 }
 
@@ -471,7 +480,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
 
         canvas.drawBitmap(buttonToDraw,
                 screenCoord - if (pressed) getThumbPressedHalfWidth() else getThumbHalfWidth(),
-                thumbTextOffset.toFloat(),
+                center.y.toFloat() - getThumbHalfHeight(),
                 paint)
     }
 
@@ -550,7 +559,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
         }
 
         var height = (thumbImage.height
-                + /*(if (thumbTextPosition == THUMB_TEXT_POSITION_NONE || thumbTextPosition == THUMB_TEXT_POSITION_CENTER && additionalTextPosition == ADDITIONAL_TEXT_POSITION_NONE || additionalTextPosition == ADDITIONAL_TEXT_POSITION_CENTER) 0 else */PixelUtil.dpToPx(context, DEFAULT_HEIGHT_IN_DP))//)
+                + if (thumbTextPosition == THUMB_TEXT_POSITION_NONE || thumbTextPosition == THUMB_TEXT_POSITION_CENTER && additionalTextPosition == ADDITIONAL_TEXT_POSITION_NONE || additionalTextPosition == ADDITIONAL_TEXT_POSITION_CENTER) 0 else 100) //todo
         if (View.MeasureSpec.UNSPECIFIED != View.MeasureSpec.getMode(heightMeasureSpec)) {
             height = Math.min(height, View.MeasureSpec.getSize(heightMeasureSpec))
         }
