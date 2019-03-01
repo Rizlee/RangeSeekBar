@@ -12,8 +12,11 @@
         android:layout_height="wrap_content"
         app:active="true"
         app:roundedCorners="true"
-        app:showAdditionalText="above"
+        app:showAdditionalText="center"
         app:showThumbsText="below"
+        app:thumbsTextMargin="5dp"
+        app:enableGradient="true"
+
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

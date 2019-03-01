@@ -3,6 +3,8 @@ package com.rizlee.rangeseekbar
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.*
+import android.os.Bundle
+import android.os.Parcelable
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
@@ -19,10 +21,8 @@ private const val DEFAULT_MIN = 0f
 private const val DEFAULT_MAX = 100f
 private const val DEFAULT_STEP = 1f
 
-private const val DEFAULT_HEIGHT_IN_DP = 40
 private const val DEFAULT_BAR_HEIGHT_IN_DP = 8
 private const val DEFAULT_TEXT_SIZE_IN_DP = 12
-private const val DEFAULT_TEXT_DISTANCE_TO_BUTTON_IN_DP = 8
 private const val DEFAULT_TEXT_DISTANCE_TO_TOP_IN_DP = 8
 private const val TEXT_LATERAL_PADDING_IN_DP = 3
 
@@ -41,12 +41,11 @@ private const val ADDITIONAL_TEXT_POSITION_CENTER = 3
 
 private const val INVALID_POINTER_ID = 255
 
-class RangeSeekBar constructor(context: Context) : View(context) {
-
-    constructor(context: Context, attributesSet: AttributeSet) : this(context) {
-        this.attributesSet = attributesSet
-        init()
-    }
+class RangeSeekBar @JvmOverloads constructor(
+        context: Context,
+        private val attrs: AttributeSet? = null,
+        defStyleAttr: Int = 0
+) : View(context, attrs, defStyleAttr) {
 
     /* Attrs values */
     private lateinit var thumbImage: Bitmap
@@ -87,8 +86,6 @@ class RangeSeekBar constructor(context: Context) : View(context) {
     private var additionalTextMargin = ADDITIONAL_TEXT_MARGIN_IN_DP
     private var thumbTextMargin = THUMB_TEXT_MARGIN_IN_DP
 
-    private var attributesSet: AttributeSet? = null
-
     /* System values */
     private var isDragging = false
 
@@ -127,7 +124,7 @@ class RangeSeekBar constructor(context: Context) : View(context) {
             }
         }
 
-        attributesSet?.let {
+        attrs?.let {
             context.obtainStyledAttributes(it, R.styleable.RangeSeekBar).apply {
                 getDrawable(R.styleable.RangeSeekBar_thumbsNormal)?.let { drawable -> thumbImage = BitmapUtil.toBitmap(drawable) }
                 getDrawable(R.styleable.RangeSeekBar_thumbsDisabled)?.let { drawable -> thumbDisabledImage = BitmapUtil.toBitmap(drawable) }
@@ -400,10 +397,10 @@ class RangeSeekBar constructor(context: Context) : View(context) {
             if (thumbTextPosition != THUMB_TEXT_POSITION_NONE) {
                 val yPosition = when (thumbTextPosition) {
                     ADDITIONAL_TEXT_POSITION_BELOW -> {
-                        center.y + barHeight / 2 + getThumbHalfHeight() + additionalTextMargin
+                        center.y + barHeight / 2 + getThumbHalfHeight() + thumbTextMargin
                     }
                     ADDITIONAL_TEXT_POSITION_ABOVE -> {
-                        center.y + barHeight / 2 - getThumbHalfHeight() - additionalTextMargin
+                        center.y + barHeight / 2 - getThumbHalfHeight() - thumbTextMargin
                     }
                     ADDITIONAL_TEXT_POSITION_CENTER -> {
                         (center.y + barHeight / 2).toFloat()
@@ -558,12 +555,33 @@ class RangeSeekBar constructor(context: Context) : View(context) {
             width = View.MeasureSpec.getSize(widthMeasureSpec)
         }
 
-        var height = (thumbImage.height
-                + if (thumbTextPosition == THUMB_TEXT_POSITION_NONE || thumbTextPosition == THUMB_TEXT_POSITION_CENTER && additionalTextPosition == ADDITIONAL_TEXT_POSITION_NONE || additionalTextPosition == ADDITIONAL_TEXT_POSITION_CENTER) 0 else 100) //todo
+        val heightThumbText = if (thumbTextPosition == THUMB_TEXT_POSITION_NONE ||
+                thumbTextPosition == THUMB_TEXT_POSITION_CENTER) 0 else PixelUtil.dpToPx(context, thumbTextMargin) + PixelUtil.dpToPx(context, textSize) / 2
+
+        val heightAdditionalText = if (additionalTextPosition == ADDITIONAL_TEXT_POSITION_NONE ||
+                additionalTextPosition == ADDITIONAL_TEXT_POSITION_CENTER) 0 else PixelUtil.dpToPx(context, additionalTextMargin) + PixelUtil.dpToPx(context, textSize) / 2
+
+        var height = thumbImage.height + Math.max(heightThumbText, heightAdditionalText)
+
         if (View.MeasureSpec.UNSPECIFIED != View.MeasureSpec.getMode(heightMeasureSpec)) {
             height = Math.min(height, View.MeasureSpec.getSize(heightMeasureSpec))
         }
         setMeasuredDimension(width, height)
+    }
+
+    override fun onSaveInstanceState(): Parcelable? {
+        val bundle = Bundle()
+        bundle.putParcelable("SUPER", super.onSaveInstanceState())
+        bundle.putDouble("MIN", normalizedMinValue)
+        bundle.putDouble("MAX", normalizedMaxValue)
+        return bundle
+    }
+
+    override fun onRestoreInstanceState(parcel: Parcelable) {
+        val bundle = parcel as Bundle
+        super.onRestoreInstanceState(bundle.getParcelable("SUPER"))
+        normalizedMinValue = bundle.getDouble("MIN")
+        normalizedMaxValue = bundle.getDouble("MAX")
     }
 
     interface OnRangeSeekBarListener {

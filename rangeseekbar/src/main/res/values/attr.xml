@@ -8,8 +8,6 @@
             <enum name="intType" value="6" />
             <enum name="floatType" value="7" />
         </attr>
-        <attr name="padding" format="dimension" />
-        <attr name="height" format="dimension" />
 
         <!-- ready -->
         <attr name="enableGradient" format="boolean" />
