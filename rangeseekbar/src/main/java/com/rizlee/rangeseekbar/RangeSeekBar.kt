@@ -6,6 +6,7 @@ import android.graphics.*
 import android.os.Bundle
 import android.os.Parcelable
 import android.util.AttributeSet
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -13,6 +14,9 @@ import androidx.core.content.res.ResourcesCompat
 import com.rizlee.rangeseekbar.utils.BitmapUtil
 import com.rizlee.rangeseekbar.utils.PixelUtil
 import java.util.logging.Logger
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 const val INT = 6
 const val FLOAT = 7
@@ -89,8 +93,7 @@ class RangeSeekBar @JvmOverloads constructor(
     /* System values */
     private var isDragging = false
 
-    private var leftValue = minValue
-    private var rightValue = maxValue
+    private var stepsCount = 0
 
     private val scaledTouchSlop by lazy { ViewConfiguration.get(getContext()).scaledTouchSlop }
 
@@ -102,7 +105,7 @@ class RangeSeekBar @JvmOverloads constructor(
     //private var thumbTextOffset = 0
 
     private var normalizedMinValue = 0.0
-    private var normalizedMaxValue = 0.5
+    private var normalizedMaxValue = 1.0
 
     private var pressedThumb: Thumb? = null
 
@@ -150,7 +153,10 @@ class RangeSeekBar @JvmOverloads constructor(
                 minValue = getFloat(R.styleable.RangeSeekBar_minValue, minValue)
                 maxValue = getFloat(R.styleable.RangeSeekBar_maxValue, maxValue)
                 stepValue = getFloat(R.styleable.RangeSeekBar_stepValue, stepValue)
+                if (maxValue < minValue) throw Exception("Min value can't be higher than max value")
+                if (!stepValueValidation(minValue, maxValue, stepValue)) throw Exception("Incorrect min/max/step, it must be: (maxValue - minValue) % stepValue == 0f")
                 valueType = getInt(R.styleable.RangeSeekBar_valueType, valueType)
+                stepsCount = ((maxValue - minValue) / stepValue).toInt()
 
                 isRoundedCorners = getBoolean(R.styleable.RangeSeekBar_roundedCorners, isRoundedCorners)
 
@@ -162,9 +168,6 @@ class RangeSeekBar @JvmOverloads constructor(
                 recycle()
             }
         }
-
-        leftValue = minValue
-        rightValue = maxValue
 
         distanceToTop = PixelUtil.dpToPx(context, DEFAULT_TEXT_DISTANCE_TO_TOP_IN_DP)
 
@@ -205,20 +208,13 @@ class RangeSeekBar @JvmOverloads constructor(
                                 pointerIndex = event.findPointerIndex(activePointerId)
                                 val x = event.getX(pointerIndex)
 
-                                if (Math.abs(x - downMotionX) > scaledTouchSlop) {
+                                if (abs(x - downMotionX) > scaledTouchSlop) {
                                     isPressed = true
                                     invalidate()
                                     isDragging = true
                                     trackTouchEvent(event)
                                     parent?.requestDisallowInterceptTouchEvent(true)
                                     println()
-                                }
-                                listener?.let {
-                                    when (valueType) {
-                                        INT -> it.onValuesChanged(minValue.toInt(), maxValue.toInt())
-                                        FLOAT -> it.onValuesChanged(minValue, maxValue)
-                                        else -> throw Exception("Unknown value type")
-                                    }
                                 }
                             }
                         }
@@ -235,6 +231,14 @@ class RangeSeekBar @JvmOverloads constructor(
                             isDragging = true
                             trackTouchEvent(event)
                             isDragging = false
+                        }
+
+                        listener?.let {
+                            when (valueType) {
+                                INT -> it.onValuesChanged(getSelectedMinValue().toInt(), getSelectedMaxValue().toInt())
+                                FLOAT -> it.onValuesChanged(getSelectedMinValue().toFloat(), getSelectedMaxValue().toFloat())
+                                else -> throw Exception("Unknown value type")
+                            }
                         }
 
                         pressedThumb = null
@@ -377,15 +381,17 @@ class RangeSeekBar @JvmOverloads constructor(
             paint.textSize = textSize.toFloat()
             paint.color = textColor                 //todo in future change textColor thumb values and left/center/right text
 
-            val minText = removeRedundantNumberPart(normalizedMinValue.toString())
-            val maxText = removeRedundantNumberPart(normalizedMaxValue.toString())
+            val minText = removeRedundantNumberPart(getSelectedMinValue().toString())
+            val maxText = removeRedundantNumberPart(getSelectedMaxValue().toString())
+
+
 
             val minTextWidth = paint.measureText(minText)
             val maxTextWidth = paint.measureText(maxText)
             val centerTextWidth = paint.measureText(centerText)
 
-            var minPosition = Math.max(0f, normalizedToScreen(normalizedMinValue) - minTextWidth * 0.5f)
-            var maxPosition = Math.min(width - maxTextWidth, normalizedToScreen(normalizedMaxValue) - maxTextWidth * 0.5f)
+            var minPosition = max(0f, normalizedToScreen(normalizedMinValue) - minTextWidth * 0.5f)
+            var maxPosition = min(width - maxTextWidth, normalizedToScreen(normalizedMaxValue) - maxTextWidth * 0.5f)
 
             val spacing = PixelUtil.dpToPx(context, TEXT_LATERAL_PADDING_IN_DP)
             val overlap = minPosition + minTextWidth - maxPosition + spacing
@@ -462,11 +468,32 @@ class RangeSeekBar @JvmOverloads constructor(
         }
     }
 
-    private fun removeRedundantNumberPart(number: String): String {
-        return if (number.contains(".")) {
-            number.substring(0, number.indexOf(".") + 2)
-        } else number
-    }
+    private fun stepValueValidation(minValue: Float, maxValue: Float, stepValue: Float) = (maxValue - minValue).toBigDecimal() % stepValue.toBigDecimal() == 0f.toBigDecimal()
+
+    private fun removeRedundantNumberPart(number: String) =
+            when (valueType) {
+                INT -> number.substring(0, number.indexOf("."))
+                FLOAT -> stepValue.toString().apply {
+                    return when {
+                        contains(".") ->{
+                            val numbersCountDifference = (length - indexOf(".") - 1) - (number.length - number.indexOf(".") - 1)
+                            when {
+                                (numbersCountDifference) > 0 -> {
+                                    var stringWithZeros = ""
+                                    for (i in 1..abs(numbersCountDifference))
+                                        stringWithZeros += "0"
+                                    number + stringWithZeros
+                                }
+                                (numbersCountDifference) < 0 -> number.substring(0, number.indexOf(".") + (length - indexOf(".")))
+                                else -> number
+                            }
+                        }
+                        number.contains(".") -> number.substring(0, number.indexOf(".") + 2)
+                        else -> number
+                    }
+                }
+                else -> throw Exception("Invalid type or values")
+            }
 
     private fun drawThumb(screenCoord: Float, pressed: Boolean, canvas: Canvas) {
         val buttonToDraw = if (isActive) {
@@ -503,7 +530,7 @@ class RangeSeekBar @JvmOverloads constructor(
         }
     }
 
-    private fun isInThumbRange(touchX: Float, normalizedThumbValue: Double) = Math.abs(touchX - normalizedToScreen(normalizedThumbValue)) <= getThumbHalfWidth()
+    private fun isInThumbRange(touchX: Float, normalizedThumbValue: Double) = abs(touchX - normalizedToScreen(normalizedThumbValue)) <= getThumbHalfWidth()
 
     private fun normalizedToScreen(normalizedPos: Double) = (padding + normalizedPos * (width - 2 * padding)).toFloat()
 
@@ -524,12 +551,12 @@ class RangeSeekBar @JvmOverloads constructor(
     }
 
     private fun setNormalizedMinValue(value: Double) {
-        normalizedMinValue = Math.max(0.0, Math.min(1.0, Math.min(value, normalizedMaxValue)))
+        normalizedMinValue = max(0.0, min(1.0, min(value, normalizedMaxValue)))
         invalidate()
     }
 
     private fun setNormalizedMaxValue(value: Double) {
-        normalizedMaxValue = Math.max(0.0, Math.min(1.0, Math.max(value, normalizedMinValue)))
+        normalizedMaxValue = max(0.0, min(1.0, max(value, normalizedMinValue)))
         invalidate()
     }
 
@@ -539,20 +566,21 @@ class RangeSeekBar @JvmOverloads constructor(
             0.0 //divide by zero safe
         } else {
             val result = ((screenPos - padding) / (width - 2 * padding)).toDouble()
-            Math.min(1.0, Math.max(0.0, result))
+            min(1.0, max(0.0, result))
         }
     }
 
-    fun setRangeValues(leftValue: Float? = this.leftValue, rightValue: Float? = this.rightValue, stepValue: Float? = this.stepValue) {
-        this.leftValue = leftValue!!
-        this.rightValue = rightValue!!
-        this.stepValue = stepValue!!
-    }
+    private fun valueToNormilize(value: Double) = ((maxValue - minValue) * (value * 100)) / 100 + minValue
+
+    private fun getSelectedMinValue() = getValueAccordingToStep(valueToNormilize(normalizedMinValue))
+    private fun getSelectedMaxValue() = getValueAccordingToStep(valueToNormilize(normalizedMaxValue))
+
+    private fun getValueAccordingToStep(value: Double) = ((value.toBigDecimal() / stepValue.toBigDecimal()).toInt()).toBigDecimal() * stepValue.toBigDecimal()
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         var width = 200
-        if (View.MeasureSpec.UNSPECIFIED != View.MeasureSpec.getMode(widthMeasureSpec)) {
-            width = View.MeasureSpec.getSize(widthMeasureSpec)
+        if (MeasureSpec.UNSPECIFIED != MeasureSpec.getMode(widthMeasureSpec)) {
+            width = MeasureSpec.getSize(widthMeasureSpec)
         }
 
         val heightThumbText = if (thumbTextPosition == THUMB_TEXT_POSITION_NONE ||
@@ -561,10 +589,10 @@ class RangeSeekBar @JvmOverloads constructor(
         val heightAdditionalText = if (additionalTextPosition == ADDITIONAL_TEXT_POSITION_NONE ||
                 additionalTextPosition == ADDITIONAL_TEXT_POSITION_CENTER) 0 else PixelUtil.dpToPx(context, additionalTextMargin) + PixelUtil.dpToPx(context, textSize) / 2
 
-        var height = thumbImage.height + Math.max(heightThumbText, heightAdditionalText)
+        var height = thumbImage.height + max(heightThumbText, heightAdditionalText)
 
-        if (View.MeasureSpec.UNSPECIFIED != View.MeasureSpec.getMode(heightMeasureSpec)) {
-            height = Math.min(height, View.MeasureSpec.getSize(heightMeasureSpec))
+        if (MeasureSpec.UNSPECIFIED != MeasureSpec.getMode(heightMeasureSpec)) {
+            height = min(height, MeasureSpec.getSize(heightMeasureSpec))
         }
         setMeasuredDimension(width, height)
     }
