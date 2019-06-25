@@ -1,28 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-        xmlns:android="http://schemas.android.com/apk/res/android"
-        xmlns:tools="http://schemas.android.com/tools"
-        xmlns:app="http://schemas.android.com/apk/res-auto"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        tools:context=".MainActivity">
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <Button
+        android:id="@+id/test"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <com.rizlee.rangeseekbar.RangeSeekBar
+        android:id="@+id/rangeSeekBar"
         android:layout_width="300dp"
         android:layout_height="wrap_content"
         app:active="true"
-        app:roundedCorners="true"
-        app:showAdditionalText="center"
-        app:showThumbsText="below"
-        app:thumbsTextMargin="5dp"
+        app:additionalTextMargin="10dp"
+        app:barHeight="10dp"
         app:enableGradient="true"
-        app:maxValue="10"
-        app:minValue="-5"
-        app:stepValue="0.2"
-        app:valueType="floatType"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:maxValue="10"
+        app:minValue="-5"
+        app:roundedCorners="true"
+        app:showAdditionalText="above"
+        app:showThumbsText="below"
+        app:stepValue="0.2"
+        app:textColor="@android:color/black"
+        app:textSize="12sp"
+        app:thumbsTextMargin="10dp"
+        app:valueType="floatType" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

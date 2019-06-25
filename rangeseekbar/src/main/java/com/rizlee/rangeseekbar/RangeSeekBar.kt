@@ -6,14 +6,13 @@ import android.graphics.*
 import android.os.Bundle
 import android.os.Parcelable
 import android.util.AttributeSet
-import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import androidx.annotation.ColorInt
 import androidx.core.content.res.ResourcesCompat
 import com.rizlee.rangeseekbar.utils.BitmapUtil
 import com.rizlee.rangeseekbar.utils.PixelUtil
-import java.util.logging.Logger
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -56,26 +55,58 @@ class RangeSeekBar @JvmOverloads constructor(
     private lateinit var thumbDisabledImage: Bitmap // when isActive = false
     private lateinit var thumbPressedImage: Bitmap
 
+    private var minValue = DEFAULT_MIN
+    private var maxValue = DEFAULT_MAX
+    private var stepValue = DEFAULT_STEP
+    private var valueType = INT
+
     var isActive = true //dragable or not
         set(value) {
             field = value; invalidate()
         }
 
     var leftText: String = getContext().getString(R.string.text_left)
+        set(value){
+            field = value
+            invalidate()
+        }
     var rightText: String = getContext().getString(R.string.text_right)
+        set(value){
+            field = value
+            invalidate()
+        }
     var centerText: String = getContext().getString(R.string.text_center)
+        set(value){
+            field = value
+            invalidate()
+        }
 
-    var minValue = DEFAULT_MIN
-    var maxValue = DEFAULT_MAX
-    var stepValue = DEFAULT_STEP
-    var valueType = INT
-
+    @ColorInt
     var sideBarColor = Color.RED
+        set(value){
+            field = value
+            invalidate()
+        }
+    @ColorInt
     var centerBarColor = Color.GREEN
+        set(value){
+            field = value
+            invalidate()
+        }
+    @ColorInt
     var transitionBarColor = Color.YELLOW
+    set(value){
+        field = value
+        invalidate()
+    }
     var isGradientNeed = false
+    set(value){
+        field = value
+        invalidate()
+    }
 
-    var listener: OnRangeSeekBarListener? = null
+    var listenerPost: OnRangeSeekBarPostListener? = null
+    var listenerRealTime: OnRangeSeekBarRealTimeListener? = null
 
     private var textColor = Color.GRAY
     private var textFont = ResourcesCompat.getFont(getContext(), R.font.worksans_semibold)
@@ -183,7 +214,6 @@ class RangeSeekBar @JvmOverloads constructor(
                 var pointerIndex: Int
                 when (event.action and MotionEvent.ACTION_MASK) {
                     MotionEvent.ACTION_DOWN -> {
-                        Logger.getLogger("test").warning("ACTION_DOWN")
                         activePointerId = event.getPointerId(event.pointerCount - 1)
                         pointerIndex = event.findPointerIndex(activePointerId)
                         downMotionX = event.getX(pointerIndex)
@@ -200,8 +230,15 @@ class RangeSeekBar @JvmOverloads constructor(
                     }
 
                     MotionEvent.ACTION_MOVE -> {
-                        Logger.getLogger("test").warning("ACTION_MOVE")
                         pressedThumb?.let {
+                            listenerRealTime?.let {
+                                when (valueType) {
+                                    INT -> it.onValuesChanging(getSelectedMinValue().toInt(), getSelectedMaxValue().toInt())
+                                    FLOAT -> it.onValuesChanging(getSelectedMinValue().toFloat(), getSelectedMaxValue().toFloat())
+                                    else -> throw Exception("Unknown value type")
+                                }
+                            }
+
                             if (isDragging) {
                                 trackTouchEvent(event)
                             } else {
@@ -222,7 +259,6 @@ class RangeSeekBar @JvmOverloads constructor(
                     }
 
                     MotionEvent.ACTION_UP -> {
-                        Logger.getLogger("test").warning("ACTION_UP")
                         if (isDragging) {
                             trackTouchEvent(event)
                             isDragging = false
@@ -233,7 +269,7 @@ class RangeSeekBar @JvmOverloads constructor(
                             isDragging = false
                         }
 
-                        listener?.let {
+                        listenerPost?.let {
                             when (valueType) {
                                 INT -> it.onValuesChanged(getSelectedMinValue().toInt(), getSelectedMaxValue().toInt())
                                 FLOAT -> it.onValuesChanged(getSelectedMinValue().toFloat(), getSelectedMaxValue().toFloat())
@@ -245,7 +281,6 @@ class RangeSeekBar @JvmOverloads constructor(
                         invalidate()
                     }
                     MotionEvent.ACTION_POINTER_DOWN -> {
-                        Logger.getLogger("test").warning("ACTION_POINTER_DOWN")
                         val index = event.pointerCount - 1
                         downMotionX = event.getX(index)
                         activePointerId = event.getPointerId(index)
@@ -253,12 +288,10 @@ class RangeSeekBar @JvmOverloads constructor(
                     }
 
                     MotionEvent.ACTION_POINTER_UP -> {
-                        Logger.getLogger("test").warning("ACTION_POINTER_UP")
                         onSecondaryPointerUp(event)
                         invalidate()
                     }
                     MotionEvent.ACTION_CANCEL -> {
-                        Logger.getLogger("test").warning("ACTION_CANCEL")
                         if (isDragging) isDragging = false; isPressed = false
                         invalidate()
                     }
@@ -384,8 +417,6 @@ class RangeSeekBar @JvmOverloads constructor(
             val minText = removeRedundantNumberPart(getSelectedMinValue().toString())
             val maxText = removeRedundantNumberPart(getSelectedMaxValue().toString())
 
-
-
             val minTextWidth = paint.measureText(minText)
             val maxTextWidth = paint.measureText(maxText)
             val centerTextWidth = paint.measureText(centerText)
@@ -468,14 +499,14 @@ class RangeSeekBar @JvmOverloads constructor(
         }
     }
 
-    private fun stepValueValidation(minValue: Float, maxValue: Float, stepValue: Float) = (maxValue - minValue).toBigDecimal() % stepValue.toBigDecimal() == 0f.toBigDecimal()
+    private fun stepValueValidation(minValue: Float, maxValue: Float, stepValue: Float) = (maxValue.toBigDecimal() - minValue.toBigDecimal()) % stepValue.toBigDecimal() == 0f.toBigDecimal()
 
     private fun removeRedundantNumberPart(number: String) =
             when (valueType) {
                 INT -> number.substring(0, number.indexOf("."))
                 FLOAT -> stepValue.toString().apply {
                     return when {
-                        contains(".") ->{
+                        contains(".") -> {
                             val numbersCountDifference = (length - indexOf(".") - 1) - (number.length - number.indexOf(".") - 1)
                             when {
                                 (numbersCountDifference) > 0 -> {
@@ -521,7 +552,7 @@ class RangeSeekBar @JvmOverloads constructor(
     }
 
     private fun onSecondaryPointerUp(ev: MotionEvent) {
-        ev.action.apply {
+        (ev.action and MotionEvent.ACTION_POINTER_ID_MASK shr MotionEvent.ACTION_POINTER_ID_SHIFT).apply {
             if (ev.getPointerId(this) == activePointerId) {
                 val newPointerIndex = if (this == 0) 1 else 0
                 downMotionX = ev.getX(newPointerIndex)
@@ -570,12 +601,67 @@ class RangeSeekBar @JvmOverloads constructor(
         }
     }
 
-    private fun valueToNormilize(value: Double) = ((maxValue - minValue) * (value * 100)) / 100 + minValue
+    private fun valueToNormalize(value: Double) = ((maxValue - minValue) * (value * 100)) / 100 + minValue
+    private fun normalizeToValue(value: Float) = (((value - minValue) * 100) / (maxValue - minValue)) / 100
 
-    private fun getSelectedMinValue() = getValueAccordingToStep(valueToNormilize(normalizedMinValue))
-    private fun getSelectedMaxValue() = getValueAccordingToStep(valueToNormilize(normalizedMaxValue))
+    private fun getSelectedMinValue() = getValueAccordingToStep(valueToNormalize(normalizedMinValue))
+    private fun getSelectedMaxValue() = getValueAccordingToStep(valueToNormalize(normalizedMaxValue))
 
     private fun getValueAccordingToStep(value: Double) = ((value.toBigDecimal() / stepValue.toBigDecimal()).toInt()).toBigDecimal() * stepValue.toBigDecimal()
+
+    private fun resetRange() {
+        if (maxValue < minValue) throw Exception("Min value can't be higher than max value")
+        if (!stepValueValidation(minValue, maxValue, stepValue)) throw Exception("Incorrect min/max/step, it must be: (maxValue - minValue) % stepValue == 0f")
+
+        normalizedMinValue = 0.0
+        normalizedMaxValue = 1.0
+
+        invalidate()
+    }
+
+    fun setRange(minValue: Float, maxValue: Float, stepValue: Float) {
+        valueType = FLOAT
+
+        this.minValue = minValue
+        this.maxValue = maxValue
+        this.stepValue = stepValue
+
+        resetRange()
+    }
+
+    fun setRange(minValue: Int, maxValue: Int, stepValue: Int) {
+        valueType = INT
+
+        this.minValue = minValue.toFloat()
+        this.maxValue = maxValue.toFloat()
+        this.stepValue = stepValue.toFloat()
+
+        resetRange()
+    }
+
+    fun setCurrentValues(leftValue: Float, rightValue: Float) {
+        if (leftValue > rightValue) throw Exception("LeftValue can't be higher than rightValue")
+        if (leftValue < minValue || rightValue > maxValue) throw Exception("Out of range")
+        if (!stepValueValidation(leftValue, maxValue, stepValue) || !stepValueValidation(minValue, rightValue, stepValue)) throw Exception("You can't set these values according to your step")
+        normalizedMinValue = normalizeToValue(leftValue).toDouble()
+        normalizedMaxValue = normalizeToValue(rightValue).toDouble()
+
+        invalidate()
+    }
+
+    fun setCurrentValues(leftValue: Int, rightValue: Int) {
+        if (leftValue > rightValue) throw Exception("LeftValue can't be higher than rightValue")
+        if (leftValue < minValue || rightValue > maxValue) throw Exception("Out of range")
+        if (!stepValueValidation(leftValue.toFloat(), maxValue, stepValue) || !stepValueValidation(minValue, rightValue.toFloat(), stepValue)) throw Exception("You can't set these values according to your step")
+        normalizedMinValue = normalizeToValue(leftValue.toFloat()).toDouble()
+        normalizedMaxValue = normalizeToValue(rightValue.toFloat()).toDouble()
+
+        invalidate()
+    }
+
+    fun getRangeInfo() = RangeInfo(minValue, maxValue, stepValue)
+
+    fun getCurrentValues() = Range(getSelectedMinValue().toFloat(), getSelectedMaxValue().toFloat())
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         var width = 200
@@ -600,24 +686,67 @@ class RangeSeekBar @JvmOverloads constructor(
     override fun onSaveInstanceState(): Parcelable? {
         val bundle = Bundle()
         bundle.putParcelable("SUPER", super.onSaveInstanceState())
-        bundle.putDouble("MIN", normalizedMinValue)
-        bundle.putDouble("MAX", normalizedMaxValue)
+        bundle.putDouble("LEFT_VALUE", normalizedMinValue)
+        bundle.putDouble("RIGHT_VALUE", normalizedMaxValue)
+
+        bundle.putFloat("MIN_VALUE", minValue)
+        bundle.putFloat("MAX_VALUE", maxValue)
+
+        bundle.putFloat("STEP_VALUE", stepValue)
+        bundle.putInt("VALUE_TYPE", valueType)
+
+        bundle.putBoolean("IS_ACTIVE", isActive)
+
+        bundle.putString("LEFT_TEXT", leftText)
+        bundle.putString("RIGHT_TEXT", rightText)
+        bundle.putString("CENTER_TEXT", centerText)
+
+        bundle.putInt("SIDE_BAR_COLOR", sideBarColor)
+        bundle.putInt("CENTER_BAR_COLOR", centerBarColor)
+        bundle.putInt("TRANSITION_BAR_COLOR", transitionBarColor)
+        bundle.putBoolean("IS_GRADIENT_NEED", isGradientNeed)
         return bundle
     }
 
     override fun onRestoreInstanceState(parcel: Parcelable) {
         val bundle = parcel as Bundle
         super.onRestoreInstanceState(bundle.getParcelable("SUPER"))
-        normalizedMinValue = bundle.getDouble("MIN")
-        normalizedMaxValue = bundle.getDouble("MAX")
+        normalizedMinValue = bundle.getDouble("LEFT_VALUE")
+        normalizedMaxValue = bundle.getDouble("RIGHT_VALUE")
+
+        minValue = bundle.getFloat("MIN_VALUE")
+        maxValue = bundle.getFloat("MAX_VALUE")
+
+        stepValue = bundle.getFloat("STEP_VALUE")
+        valueType = bundle.getInt("VALUE_TYPE")
+
+        isActive = bundle.getBoolean("IS_ACTIVE")
+
+        leftText = bundle.getString("LEFT_TEXT")
+        rightText = bundle.getString("RIGHT_TEXT")
+        centerText = bundle.getString("CENTER_TEXT")
+
+        sideBarColor = bundle.getInt("SIDE_BAR_COLOR")
+        centerBarColor = bundle.getInt("CENTER_BAR_COLOR")
+        transitionBarColor = bundle.getInt("TRANSITION_BAR_COLOR")
+        isGradientNeed = bundle.getBoolean("IS_GRADIENT_NEED")
+        invalidate()
     }
 
-    interface OnRangeSeekBarListener {
+    interface OnRangeSeekBarPostListener {
         fun onValuesChanged(minValue: Float, maxValue: Float)
         fun onValuesChanged(minValue: Int, maxValue: Int)
     }
 
-    enum class Thumb {
+    interface OnRangeSeekBarRealTimeListener {
+        fun onValuesChanging(minValue: Float, maxValue: Float)
+        fun onValuesChanging(minValue: Int, maxValue: Int)
+    }
+
+    data class Range(val leftValue: Float, val rightValue: Float)
+    data class RangeInfo(val minValue: Float, val maxValue: Float, val stepValue: Float)
+
+    private enum class Thumb {
         MIN, MAX
     }
 }
