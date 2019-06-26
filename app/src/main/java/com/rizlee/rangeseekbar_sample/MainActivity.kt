@@ -1,8 +1,7 @@
 package com.rizlee.rangeseekbar_sample
 
-import android.graphics.Color
-import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
 import kotlinx.android.synthetic.main.activity_main.*
 
 class MainActivity : AppCompatActivity() {
@@ -11,9 +10,6 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        test.setOnClickListener{
-            rangeSeekBar.setRange(10, 30, 2)
-            rangeSeekBar.setCurrentValues(10f, 12.0f)
-        }
+        rangeSeekBar4.setCurrentValues(2.2f, 5.7f)
     }
 }
