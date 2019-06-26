@@ -38,7 +38,7 @@ Function name | Description |
 `setCurrentValues(leftValue: Float, rightValue: Float)` | set selected values
 `setCurrentValues(leftValue: Int, rightValue: Int)` | set selected values
 `getRangeInfo()` | return RangeInfo(val minValue: Float, val maxValue: Float, val stepValue: Float)
-`getCurrentValues` | return Range(val leftValue: Float, val rightValue: Float)
+`getCurrentValues()` | return Range(val leftValue: Float, val rightValue: Float)
 
 **Public fields(getters and setters)**
 
