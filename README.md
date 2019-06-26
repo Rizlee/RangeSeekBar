@@ -1,3 +1,45 @@
+[![Platform](https://img.shields.io/badge/platform-Android-yellow.svg)](https://www.android.com)
+[![API](https://img.shields.io/badge/API-21%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=21)
+[ ![Download](https://api.bintray.com/packages/rizlee/rangeseekbar/rangeseekbar/images/download.svg?version=1.0.0) ](https://bintray.com/rizlee/rangeseekbar/rangeseekbar/1.0.0/link)
+
+# Usage
+#### Gradle
+```xml
+implementation "com.rizlee.view:rangeseekbar:$latest_version"
+```
+
+#### XML
+```xml
+ <com.rizlee.rangeseekbar.RangeSeekBar
+        android:id="@+id/rangeSeekBar"
+        android:layout_width="300dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        app:active="true"
+        app:additionalTextMargin="6dp"
+        app:enableGradient="true"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:roundedCorners="true"
+        app:showAdditionalText="above"
+        app:showThumbsText="below"
+        app:textColor="@android:color/black"
+        app:thumbsTextMargin="6dp" />
+```
+
+#### Kotlin
+```kotlin
+just implement:
+OnRangeSeekBarPostListener 
+or
+OnRangeSeekBarRealTimeListener
+ 
+rangeSeekBar.listenerPost = this
+or
+rangeSeekBarlistenerRealTime = this
+```
+
 ![alt text](example_2.png)
 
 ![alt text](example.png)
@@ -61,3 +103,6 @@ Field name | Type | Description |
 -------------| ------| -------------|
 listenerPost | OnRangeSeekBarPostListener | sends results after a user has finished changing them.
 listenerRealTime | OnRangeSeekBarRealTimeListener | sends results while changing values
+
+
+*If you need some new features or you found bugs please write issue
